@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SBI General - Chat Buddy</title>
+    <meta name="theme-color" content="#075e54">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        /* --- WHATSAPP THEME CSS --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: #111b21; display: flex; justify-content: center; height: 100vh; overflow: hidden; }
+
+        .app-container {
+            width: 100%; max-width: 480px; height: 100%;
+            background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
+            background-color: #e5ddd5;
+            display: flex; flex-direction: column; position: relative;
+        }
+
+        /* Header */
+        .chat-header {
+            background-color: #075e54; color: white; padding: 10px 15px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2); z-index: 10;
+        }
+        .profile-info { display: flex; align-items: center; gap: 10px; cursor: pointer;}
+        .profile-pic { width: 40px; height: 40px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #075e54; font-size: 20px; }
+        .header-text h4 { font-size: 16px; font-weight: 500; }
+        .header-text p { font-size: 11px; opacity: 0.8; }
+        .header-actions { font-size: 18px; gap: 15px; display: flex; }
+
+        /* Chat Window */
+        .chat-window { flex: 1; padding: 10px 10px 20px 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+
+        /* Messages */
+        .message { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 14.5px; line-height: 1.4; position: relative; word-wrap: break-word; box-shadow: 0 1px 1px rgba(0,0,0,0.1); margin-bottom: 4px; }
+        .message.bot { align-self: flex-start; background-color: #ffffff; border-top-left-radius: 0; }
+        .message.user { align-self: flex-end; background-color: #dcf8c6; border-top-right-radius: 0; }
+        .timestamp { font-size: 10px; color: #999; text-align: right; margin-top: 4px; float: right; margin-left: 10px; }
+
+        /* Option Pills (Buttons inside chat) */
+        .options-container { display: flex; flex-wrap: wrap; gap: 8px; margin: 5px 0 10px 0; }
+        .option-pill {
+            background-color: white; border: 1px solid #075e54; color: #075e54;
+            padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
+            cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: 0.2s;
+        }
+        .option-pill:active { background-color: #075e54; color: white; }
+
+        /* Complex Cards inside Chat (Hospital Results) */
+        .hospital-card {
+            background: #f0f2f5; padding: 10px; border-radius: 8px; margin-top: 5px; border-left: 4px solid #280071;
+        }
+        .h-name { font-weight: bold; font-size: 13px; color: #1f2937; }
+        .h-addr { font-size: 12px; color: #6b7280; margin-bottom: 5px; }
+        .h-badge { background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+
+        /* Input Area */
+        .input-area { background-color: #f0f0f0; padding: 8px; display: flex; align-items: center; z-index: 10; }
+        .input-box { flex: 1; padding: 12px 15px; border-radius: 25px; border: none; outline: none; background-color: #fff; font-size: 15px; }
+        .send-btn { background-color: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; margin-left: 8px; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 18px; }
+
+        /* Overlay for "Webview" (Calculators) */
+        .webview-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white;
+            z-index: 100; display: none; flex-direction: column; animation: slideUp 0.3s ease-out;
+        }
+        .webview-header { background: #280071; padding: 15px; color: white; display: flex; justify-content: space-between; align-items: center; }
+        .close-webview { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        /* Utilities */
+        .hidden { display: none; }
+        .typing-indicator { font-style: italic; color: #555; font-size: 12px; margin: 5px 10px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="chat-header">
+        <div class="profile-info" onclick="resetChat()">
+            <div class="profile-pic"><i class="fas fa-robot"></i></div>
+            <div class="header-text">
+                <h4>Sales Buddy</h4>
+                <p>Online | SBI General</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <i class="fas fa-file-upload" onclick="document.getElementById('fileInput').click()" style="font-size:16px;"></i>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept=".xlsx" style="display:none" onchange="handleFileSelect(event)">
+
+    <div class="chat-window" id="chatWindow"></div>
+    <div class="typing-indicator" id="typing">Buddy is typing...</div>
+
+    <div class="input-area">
+        <input type="text" id="userInput" class="input-box" placeholder="Type a message..." autocomplete="off">
+        <button class="send-btn" onclick="handleUserText()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+</div>
+
+<div id="webview" class="webview-overlay">
+    <div class="webview-header">
+        <span id="webviewTitle">Calculator</span>
+        <button class="close-webview" onclick="closeWebview()">&times;</button>
+    </div>
+    <iframe id="webviewFrame" style="flex:1; border:none; width:100%;"></iframe>
+</div>
+
+<script>
+    // --- STATE MANAGEMENT ---
+    const chatWindow = document.getElementById('chatWindow');
+    const userInput = document.getElementById('userInput');
+    const typing = document.getElementById('typing');
+    
+    let hospitalData = [];
+    let conversationState = 'IDLE'; // IDLE, SEARCH_TYPE, SEARCH_INPUT
+    let searchFilter = ''; // 'city', 'pin', 'state'
+
+    // --- INITIALIZATION ---
+    window.onload = () => {
+        botReply("👋 Hello! I am your SBI Sales Buddy.");
+        setTimeout(() => {
+            botReply("Please upload the **network_hospitals.xlsx** file using the upload icon (top right) to enable search.", 0);
+            showMainMenu();
+        }, 800);
+        
+        // Auto-load if file exists locally
+        loadExcelData();
+    };
+
+    function showMainMenu() {
+        conversationState = 'IDLE';
+        const options = [
+            { text: "⚡ Quick Quote", action: "menu_quote" },
+            { text: "🏥 Network Hospitals", action: "menu_network" },
+            { text: "📥 Downloads", action: "menu_downloads" },
+            { text: "📞 Support", action: "menu_support" }
+        ];
+        showOptions("How can I assist you today?", options);
+    }
+
+    // --- CORE CHAT FUNCTIONS ---
+
+    function handleUserText() {
+        const text = userInput.value.trim();
+        if(!text) return;
+        
+        addMessage(text, 'user');
+        userInput.value = '';
+
+        // State Machine for Text Input
+        if (conversationState === 'SEARCH_INPUT') {
+            performSearch(text);
+        } else {
+            // Default Fallback
+            setTimeout(() => {
+                botReply("I didn't understand that. Please use the buttons below.");
+                showMainMenu();
+            }, 500);
+        }
+    }
+
+    function addMessage(text, sender, isHtml = false) {
+        const div = document.createElement('div');
+        div.classList.add('message', sender);
+        
+        let content = text;
+        if (!isHtml) {
+            content = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+
+        div.innerHTML = `${content}<span class="timestamp">${getCurrentTime()}</span>`;
+        chatWindow.appendChild(div);
+        scrollToBottom();
+    }
+
+    function botReply(text, delay = 600) {
+        typing.style.display = 'block';
+        scrollToBottom();
+        setTimeout(() => {
+            typing.style.display = 'none';
+            addMessage(text, 'bot');
+        }, delay);
+    }
+
+    function showOptions(msgText, options) {
+        setTimeout(() => {
+            const div = document.createElement('div');
+            div.classList.add('message', 'bot');
+            div.innerHTML = `${msgText}<span class="timestamp">${getCurrentTime()}</span>`;
+            chatWindow.appendChild(div);
+
+            const optContainer = document.createElement('div');
+            optContainer.classList.add('options-container');
+            
+            options.forEach(opt => {
+                const btn = document.createElement('div');
+                btn.classList.add('option-pill');
+                btn.innerText = opt.text;
+                btn.onclick = () => handleOptionClick(opt.action, opt.text);
+                optContainer.appendChild(btn);
+            });
+            
+            chatWindow.appendChild(optContainer);
+            scrollToBottom();
+        }, 600);
+    }
+
+    function handleOptionClick(action, text) {
+        addMessage(text, 'user');
+        
+        // Remove old options to clean UI (Optional, but looks better)
+        const allOpts = document.querySelectorAll('.options-container');
+        if(allOpts.length > 0) allOpts[allOpts.length - 1].style.display = 'none';
+
+        processAction(action);
+    }
+
+    function scrollToBottom() {
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    function getCurrentTime() {
+        return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // --- ACTION LOGIC ---
+
+    function processAction(action) {
+        switch(action) {
+            // Main Menu Logic
+            case 'menu_quote':
+                showOptions("Select the product for the quote:", [
+                    {text: "Health Alpha", action: "quote_alpha"},
+                    {text: "Super Health", action: "quote_super"},
+                    {text: "🔙 Main Menu", action: "go_home"}
+                ]);
+                break;
+            
+            case 'menu_network':
+                if(hospitalData.length === 0) {
+                    botReply("⚠️ Database not loaded. Please upload the Excel file first.");
+                    showMainMenu();
+                    return;
+                }
+                showOptions("Search hospitals by:", [
+                    {text: "City", action: "search_city"},
+                    {text: "Pincode", action: "search_pin"},
+                    {text: "🔙 Main Menu", action: "go_home"}
+                ]);
+                break;
+
+            case 'menu_downloads':
+                showOptions("What do you need?", [
+                    {text: "📘 Alpha Brochure", action: "dl_alpha"},
+                    {text: "🦸 Super Brochure", action: "dl_super"},
+                    {text: "📝 Claim Form", action: "dl_claim"},
+                    {text: "🔙 Main Menu", action: "go_home"}
+                ]);
+                break;
+
+            case 'menu_support':
+                const supportMsg = `
+                    🎧 **Partner Helpdesk:** <a href="tel:1800221111">1800 22 1111</a><br><br>
+                    🏥 **Claims:** <a href="tel:18002103366">1800 210 3366</a><br>
+                    ✉️ <a href="mailto:sbig.health@sbigeneral.in">sbig.health@sbigeneral.in</a>
+                `;
+                botReply(supportMsg);
+                setTimeout(showMainMenu, 2000);
+                break;
+
+            case 'go_home':
+                showMainMenu();
+                break;
+
+            // Quote Logic
+            case 'quote_alpha':
+                openWebview('alpha_select.html', 'Health Alpha Calculator'); // Assuming file exists
+                setTimeout(showMainMenu, 1000);
+                break;
+            case 'quote_super':
+                openWebview('superhealthcalc.html', 'Super Health Calculator');
+                setTimeout(showMainMenu, 1000);
+                break;
+
+            // Search Logic Setup
+            case 'search_city':
+                conversationState = 'SEARCH_INPUT';
+                searchFilter = 'city';
+                botReply("Please type the **City Name**:");
+                break;
+            case 'search_pin':
+                conversationState = 'SEARCH_INPUT';
+                searchFilter = 'pincode';
+                botReply("Please type the **Pincode**:");
+                break;
+
+            // Downloads Logic
+            case 'dl_alpha': sendFile('HealthAlpha.pdf'); break;
+            case 'dl_super': sendFile('SuperHealth.pdf'); break;
+            case 'dl_claim': sendFile('ClaimForm.pdf'); break;
+        }
+    }
+
+    // --- FEATURE IMPLEMENTATION ---
+
+    /* 1. CALCULATOR WEBVIEW */
+    function openWebview(url, title) {
+        const overlay = document.getElementById('webview');
+        document.getElementById('webviewTitle').innerText = title;
+        document.getElementById('webviewFrame').src = url;
+        overlay.style.display = 'flex';
+    }
+
+    function closeWebview() {
+        document.getElementById('webview').style.display = 'none';
+        document.getElementById('webviewFrame').src = "";
+    }
+
+    /* 2. EXCEL & SEARCH */
+    function loadExcelData() {
+        fetch("network_hospitals.xlsx")
+        .then(res => { if(!res.ok) throw new Error(); return res.arrayBuffer(); })
+        .then(data => parseExcel(data))
+        .catch(err => console.log("Waiting for upload"));
+    }
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => parseExcel(new Uint8Array(e.target.result));
+        reader.readAsArrayBuffer(file);
+    }
+
+    function parseExcel(data) {
+        try {
+            const workbook = XLSX.read(data, {type: 'array'});
+            const rawJson = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            
+            // Normalize Keys
+            hospitalData = rawJson.map(row => {
+                const newRow = {};
+                Object.keys(row).forEach(key => {
+                    newRow[key.toLowerCase().replace(/[^a-z]/g, '')] = row[key];
+                });
+                return newRow;
+            });
+
+            botReply("✅ Database Loaded Successfully! You can now search for hospitals.");
+        } catch (e) {
+            botReply("❌ Error reading file.");
+        }
+    }
+
+    function performSearch(query) {
+        botReply("Searching...");
+        
+        setTimeout(() => {
+            const val = query.toLowerCase();
+            const results = hospitalData.filter(h => {
+                const matchKey = Object.keys(h).find(k => k.includes(searchFilter === 'pincode' ? 'pin' : 'city'));
+                return matchKey && String(h[matchKey]).toLowerCase().includes(val);
+            });
+
+            if (results.length === 0) {
+                botReply(`No hospitals found for ${query}. Try again?`);
+            } else {
+                botReply(`Found ${results.length} hospitals:`);
+                
+                // Show Top 5 cards
+                let resultHtml = "";
+                results.slice(0, 5).forEach(h => {
+                    const name = h['hospitalname'] || h['name'] || "Unknown";
+                    const addr = h['address'] || h['addr'] || "";
+                    resultHtml += `
+                        <div class="hospital-card">
+                            <div class="h-name">${name}</div>
+                            <div class="h-addr">${addr}</div>
+                            <span class="h-badge">Cashless</span>
+                        </div>`;
+                });
+                
+                addMessage(resultHtml, 'bot', true);
+
+                // Option to download PDF if results > 0
+                showOptions("Would you like to download the full list?", [
+                    {text: "📄 Download PDF", action: "download_pdf_results"}, // You'd need to link this to logic
+                    {text: "🔍 Search Again", action: "menu_network"},
+                    {text: "🏠 Main Menu", action: "go_home"}
+                ]);
+                
+                // Hacky way to store results for PDF generation if needed later
+                window.lastResults = results;
+            }
+            conversationState = 'IDLE';
+        }, 1000);
+    }
+
+    /* 3. DOWNLOADS */
+    function sendFile(fileName) {
+        const html = `
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="background:#ff9f9f; width:40px; height:40px; border-radius:5px; display:flex; align-items:center; justify-content:center; color:#c00; font-weight:bold;">PDF</div>
+                <div>
+                    <div style="font-weight:bold;">${fileName}</div>
+                    <div style="font-size:11px; color:#888;">1.2 MB • PDF</div>
+                </div>
+            </div>
+            <div style="margin-top:10px; border-top:1px solid #eee; padding-top:5px; text-align:center;">
+                <a href="${fileName}" download style="text-decoration:none; color:#075e54; font-weight:bold;">Download</a>
+            </div>
+        `;
+        addMessage(html, 'bot', true);
+        setTimeout(showMainMenu, 1500);
+    }
+    
+    function resetChat() {
+        chatWindow.innerHTML = '';
+        showMainMenu();
+    }
+
+</script>
+</body>
+</html>
